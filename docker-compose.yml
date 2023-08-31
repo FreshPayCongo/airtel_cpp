@@ -1,0 +1,22 @@
+version: "3.7"
+
+services: 
+  flask:
+    build: ./flask
+    container_name: flask
+    volumes: 
+      - ./flask:/home/ext_jbiola012_gmail_com/freshPay_pro_gateway/flask
+    restart: always
+    environment: 
+      - APP_NAME=MyFlaskApp
+    expose: 
+      - 8080
+    sysctls:
+         net.core.somaxconn: 65535
+
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    restart: always
+    ports: 
+      - "2801:80"
