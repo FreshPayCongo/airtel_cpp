@@ -1,18 +1,20 @@
-import logging as logger
-import json
+from flask_restful import reqparse
+from flask import request, jsonify
 import requests
+import json
 from datetime import timedelta, datetime
 import random, os, subprocess
-from flask_restful import reqparse
-from flask import request,jsonify
-from datetime import timedelta,datetime
-import random, os,subprocess
 from flask import app
 from api import freshPayGW
-import pymysql
 from databases.Data import *
+from xml.etree import ElementTree
+import pymysql
+#import xmltodict
+import logging as logger
 from flask_jwt_extended import (jwt_required, create_access_token, JWTManager)
 from werkzeug.security import generate_password_hash, check_password_hash
+
+
 
 # Configuration de la gestion des logs et traces
 logger.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logger.DEBUG)
@@ -26,6 +28,7 @@ HEADERS = {
 url = "/auth/oauth2/token"
 urlCharge="/merchant/v1/payments/"
 urlPayout ="/standard/v1/disbursements/"
+urlx="https://openapi.airtel.africa/standard/v1/disbursements/"
 
 
 # Configuration de la gestion des logs et traces
@@ -35,6 +38,7 @@ freshPayGW.config['JWT_SECRET_KEY'] = 'thisissecretkey'
 # Objet de gestion des tokens
 jwt = JWTManager(freshPayGW)
 # Méthode affichant un message lors de l'expiration du token
+
 @jwt.expired_token_loader
 def my_expired_token_callback(expired_token):
     token_type = expired_token['type']
@@ -49,8 +53,14 @@ def my_expired_token_callback(expired_token):
 # Méthode permettant la génération du FP (Identifiant unique pour chaque transaction)
 def generatedFreshPayID(year, month, day):
     motifs = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    logger.info("GENERATION DU FP")
-    return 'FP03' + ''.join((random.choice(motifs)) for i in range(2)) + str(year) + ''.join((random.choice(motifs)) for j in range(2)) + str(month)+ ''.join((random.choice(motifs)) for k in range(1)) + str(day)+ ''
+    fp = 'FP03' + ''.join(
+        (random.choice(motifs)) for i in range(5)) + str(month) + ''.join(
+            (random.choice(motifs)) for j in range(3)) +'yan'+ str(day) + ''.join(
+                (random.choice(motifs))
+                for k in range(5)) + str(year) + ''.join(
+                    (random.choice(motifs)) for l in range(3))
+    logger.info(f"GENERATION DU FP : {fp}")
+    return fp
 
 # Méthode permettant de vérifier l'existance et la validité d'un merchant
 # Retourne True ou soit false ou soit 0 quand le merchant n'existe pas
@@ -104,8 +114,8 @@ def merchantLoginWithWallet(merchant, key, trans_type):
 
 def GetToken():
     payload = json.dumps({
-    "client_id": "4bca7c46-e2c6-40a7-bae6-c2b41abd74e1",
-    "client_secret": "843972a1-bed9-4287-9d54-9918a44d8028",
+    "client_id": "9918cbf7-38fe-4111-9518-ae179c7731e7",
+    "client_secret": "43579758-72d4-498e-96dd-2f76bc4319f0",
     "grant_type": "client_credentials"
     })
     
@@ -113,22 +123,18 @@ def GetToken():
     repo=response.json()
     return repo["access_token"]
 
-# Méthode permettant la génération du FP (Identifiant unique pour chaque transaction)
-def generatedFreshPayID(year, month, day):
-    motifs = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    logger.info("GENERATION DU FP")
-    return 'FP03' + ''.join((random.choice(motifs)) for i in range(2)) + str(year) + ''.join((random.choice(motifs)) for j in range(2)) + str(month)+ ''.join((random.choice(motifs)) for k in range(1)) + str(day)+ ''
-
-
 # Méthode permettant de faire un deposit
 # Retourne les informations conernant la transaction effectuée
+
 @freshPayGW.route("/api/v1/charge", methods=['POST'])
+
 def verify():
     parser = reqparse.RequestParser()
-    parser.add_argument("action", type=str, help='Verify')
-    parser.add_argument("merchant_code", type=str, help='Merchant code')
-    parser.add_argument("key", type=str, help='Key')
+    parser.add_argument("action",help='Verify')
+    parser.add_argument("merchant_code", help='Merchant code')
+    parser.add_argument("key", help='Key',)
     data = parser.parse_args()
+
     action = data['action']
     merchant_code = data['merchant_code']
     key = data['key']
@@ -136,14 +142,25 @@ def verify():
     if action == 'status':
         logger.info("LANCEMENT DU VERIFY")
         return verifyToMe()
-    elif action == 'charge':     
+    elif action == 'charge':  
+        logger.info("je suis ici 3")   
         logger.info("LANCEMENT DU DEPOSIT")
+        logger.info("je suis ici")
         return makeDeposit()
     else:
         logger.error("{} ACTION INCONNUE".format(action))
         return jsonify({
             "Message" : "cette action est inconnue !!"
         })
+    
+    
+#Methode pour envoyer au payDRC
+#def sendToPayDRC(data, endpoint):
+    #logger.info("REQUEST SEND TO PAYDRC")
+   # logger.info(data)
+    #headers = {"Content-Type" : "application/json"}
+    #response = requests.post(url=endpoint, headers=headers, data=json.dumps(data))
+    #return response.json()
 # Méthode permettant d'effectuer le verify en fonction du FP ou d'une référence autre venant du merchant
 
 def verifyToMe():
@@ -266,7 +283,7 @@ def makeDeposit():
     if instertToSwitch == 1:
         #try:
         logger.info("Avant excution curl c2bReauest")
-        payload = json.dumps({
+        pax = json.dumps({
         "reference": "Testing transaction",
         "subscriber": {
             "country": "CD",
@@ -281,8 +298,6 @@ def makeDeposit():
         }
         })
         token=GetToken()
-        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-        print(token)
         headers = {
         'Content-Type': 'application/json',
         'Accept': '/',
@@ -292,7 +307,8 @@ def makeDeposit():
         
         }
 
-        response = requests.request("POST",BASE_URL+urlCharge, headers=headers, data=payload)
+        response = requests.request("POST",BASE_URL+urlCharge, headers=headers, data=pax)
+        print(response)
         conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
         updatedAt = str(datetime.now())
         FinancialInstitutionStatusCode = '200'
@@ -324,6 +340,91 @@ def makeDeposit():
     )
 
 
+    
+@freshPayGW.route('/api/v1/login', methods=['POST'])
+def login():
+    parser = reqparse.RequestParser()
+    parser.add_argument("merchant_code", type=str, help='Merchant code')
+    parser.add_argument("key", type=str, help='Key')
+    data = parser.parse_args()
+    merchant_code = data['merchant_code']
+    key = data['key']
+    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+    query = "SELECT * FROM merchantsMigration WHERE merchant_code = '{}'".format(merchant_code)
+    details = executeQueryForGetData(conn, query)
+    
+    merchant_code_db = str(details[0][3])
+    key_db = str(details[0][5])
+    if merchant_code != merchant_code_db  or generate_password_hash(key) != key_db:
+        return jsonify({"Message": "Le nom du marchant ou la key est incorrect"}), 401
+    
+    expires = timedelta(days=90)
+    ret = {
+        'merchant_code' : '',
+        'key' : '',
+        'token': create_access_token(merchant_code, expires_delta=expires)
+        }
+    return jsonify(ret), 200
+
+@freshPayGW.route('/api/v1/create-prod-token', methods=['POST'])
+#@jwt_required()
+def create_dev_token():
+    merchant_code = get_jwt_identity()
+    expires = datetime.timedelta(days=90)
+    token = create_access_token(merchant_code, expires_delta=expires)
+    logger.info(merchant_code)
+    return jsonify({'token': token}), 201
+
+@freshPayGW.route('/api/v1/merchants', methods=['POST'])
+def createMerchant():
+    logger.info("CREATION DU MERCHANT")
+    parser = reqparse.RequestParser()
+    parser.add_argument("merchant_code", type=str, help='Merchant code')
+    parser.add_argument("key", type=str, help='Key')
+    parser.add_argument("merchant_payouts", type=str, help='Wallet de paiement')
+    parser.add_argument("merchant_deposits", type=str, help='Wallet de deposit')
+    data = parser.parse_args()
+    merchant_code = data['merchant_code']
+    key = data['key']
+    if data['merchant_deposits'] == "":
+        walletDeposit = "8273000"
+    else:
+        walletDeposit = data['merchant_deposits']
+    if data['merchant_payouts'] == "":
+        walletPayout = "15120"
+    else:
+        walletPayout = data['merchant_payouts']
+    
+    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+    query = "SELECT * FROM merchants WHERE merchant_code = '{}'".format(merchant_code)
+    details = executeQueryForGetData(conn, query)
+    ta = len(details)
+    if ta > 0:
+        logger.warning("{} merchant code existe déjà dans le système".format(merchant_code))
+        return jsonify({"Message" : "Le merchant code existe déjà dans le système"}), 401
+    
+    createdAt = str(datetime.now())
+    keyToInsert = generate_password_hash(key)
+    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+    query = "INSERT INTO merchants(created_at, updated_at, merchant_code, merchant_key, merchant_payouts, merchant_deposits) VALUES(%s, %s, %s, %s, %s, %s)"
+    dataToInsert = (createdAt, createdAt, merchant_code, keyToInsert, walletPayout, walletDeposit)
+    instertToSwitch = executeQueryForInsertDate(conn, query, dataToInsert)
+    if instertToSwitch == 1:
+        logger.info("{} creation du marchant effectuee avec success".format(merchant_code))
+        return jsonify(
+        action="creation de marchant",
+        status="Success",
+        merchant_code=merchant_code,
+        merchant_deposit_wallet=walletDeposit,
+        merchant_payout_wallet=walletPayout,
+        key=keyToInsert
+    ), 200
+    logger.error("{} Erreur survenue lors de la creation de ce merchant".format(merchant_code))
+    return jsonify({
+        "Message" : "Erreur survenue"
+    })
+
+
 # Méthode permettant de faire un payouts
 # Retourne les infos liées à la transaction effectuées
 @freshPayGW.route("/api/v1/airtel_fresh_payouts", methods=['POST'])
@@ -346,12 +447,7 @@ def payout():
     merchant_code = data['merchant_code']
     key = data['key']
     merchant_ref = data['merchant_ref']
-    """ if merchantLogin(merchant_code, key) == False or merchantLogin(merchant_code, key) == 0:
-        logger.warning("{} Ce marchant n'est pas autorisé".format(merchant_code))
-        return jsonify({
-            "Message" : "Ce marchant n'est pas autorisé !!!"
-        })
-    """
+   
     if action != 'payout':
         logger.error("{} ACTION INCONNUE".format(action))
         return jsonify({
@@ -402,93 +498,66 @@ def payout():
     if instertToSwitch == 1:
         try:
             
-            payload = json.dumps({
+            pa = json.dumps({
             "payee": {
                 "msisdn": debitAccount
             },
-            "reference": "TETSINGPROtetsD",
-            "pin": "SREnA5PFUez+pjKn/BB7TAzxgXeej0LN1pRq9UD2uxQwwi2jjjWoJtx6CoQyNSYlHOFCXfDrX+2+lajnS5pxaygITiSS15bbvJ3mh/9soQb7OIJtIuXVF88jF3DY1LXN0r9yAR9NT8XGid44ayNZapbiydPaZcvD6pEcmBz3Z8A=",
+            "reference": "ABCD07026984141",
+            "pin":"lorHt7JcrHNJUR1nh1RMHGMW/DtYTnMDma37eA9Xya9OF5y2vpz2gVU+wE1/iir9jjAb0+V+ya/KvLzL1UfUtWnz8Oam5Ypeo8MZ0pWAK/mmkvM7LZ9gD/+d7ERPViHyQh1JOn3mwNGqnWOyNRuqhei0EGSXIKaqznq1W+ccm7Y=",
             "transaction": {
                 "amount": amount,
                 "id": transId
             }
             })
             token=GetToken()
-            print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-            print(token)
-            headers = {
+            hea = {
             'Content-Type': 'application/json',
-            'Accept': '/',
+            'Accept': '*/*',
             'X-Country': 'CD',
             'X-Currency': currency,
             'Authorization': 'Bearer '+token
             
             }
 
-            response = requests.request("POST",urlPayout, headers=headers, data=payload)
-
-            print(response.text)
+            repo = requests.request("POST",urlx, headers=hea, data=pa)
+            financial_institution_transaction_id =repo.json()
+            conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+            updatedAt = str(datetime.now())
             
-            conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
-            updatedAt = str(datetime.now())
+            FinancialInstitutionStatusCode =financial_institution_transaction_id['status']['code']
+            FinancialInstitutionReponseCode =financial_institution_transaction_id['status']['response_code']
+            FinancialInstitutionStatusDesc =financial_institution_transaction_id['status']['message']
+            FinancialInstitutionID =financial_institution_transaction_id['data']['transaction']['reference_id']
 
-                            
-
-            #wallet = merchantLoginWithWallet(merchant_code, key, action)
-            generatedAirtelB2C = subprocess.call('php api/b2cRequestDefault.php {} {} {} {} {}'.format(currency, creditAccount, transId, amount, token),shell=True)
-            runB2C = subprocess.call('php api/runB2C.php {}'.format(transId),shell=True)
-            responseAirtel = "responseB2C{}.xml".format(transId)
-            tree = etree.ElementTree(file=responseAirtel)
-            root = tree.getroot()
-            r = []
-            for ee in root:
-                r.append(ee.text)
-       
-            conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
-            updatedAt = str(datetime.now())
-            FinancialInstitutionStatusCode = r[2]
-            FinancialInstitutionStatusDesc = r[3]
-            FinancialInstitutionID = r[1]
-
-            if FinancialInstitutionStatusCode == '200':
+            if FinancialInstitutionReponseCode == 'DP00900001001':
                 status = 'Successful'
-            elif FinancialInstitutionStatusCode == '60021':
+            elif FinancialInstitutionReponseCode == 'DP00900001000':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '60023':
+            elif FinancialInstitutionReponseCode == 'DP00900001003':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '99051':
+            elif FinancialInstitutionReponseCode == 'DP00900001004':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '0100005':
+            elif FinancialInstitutionReponseCode == 'DP00900001005':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '0100025':
+            elif FinancialInstitutionReponseCode == 'DP00900001006':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '60024':
+            elif FinancialInstitutionReponseCode == 'DP00900001007':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '0100029':
+            elif FinancialInstitutionReponseCode == 'DP00900001009':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '0100033':
+            elif FinancialInstitutionReponseCode == 'DP00900001010':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '00409':
+            elif FinancialInstitutionReponseCode == 'DP00900001011':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '00410':
+            elif FinancialInstitutionReponseCode == 'DP00900001012':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '0100048':
+            elif FinancialInstitutionReponseCode == 'DP00900001013':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '60030':
+            elif FinancialInstitutionReponseCode == 'DP00900001014':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '1931':
+            elif FinancialInstitutionReponseCode == 'DP00900001015':
                 status = 'Failed'
-            elif FinancialInstitutionStatusCode == '00651':
-                status = 'Failed'
-            elif FinancialInstitutionStatusCode == '1930':
-                status = 'Failed'
-            elif FinancialInstitutionStatusCode == '60019':
-                status = 'Failed'
-            elif FinancialInstitutionStatusCode == '0100027':
-                status = 'Failed'
-            elif FinancialInstitutionStatusCode == '60074':
-                status = 'Failed'
-            elif FinancialInstitutionStatusCode == '00317':
+            elif FinancialInstitutionReponseCode == 'DP00900001016':
                 status = 'Failed'
             else:
                 status = 'Submitted'
@@ -512,7 +581,7 @@ def payout():
                     "telco_status_description" : FinancialInstitutionStatusDesc
                 }
                 
-                logger.info(sendToPayDRC(dataToSend, url))
+                #logger.info(sendToPayDRC(dataToSend, url))
             logger.info("B2C ENVOYE A AIRTEL AVEC SUCCESS POUR {} {}".format(transId, merchant_ref))
             return jsonify(
                 action = action,
@@ -546,72 +615,10 @@ def payout():
         created_at = createdAt,
         debit_channel = debitChannel,
         destination_channel = debitChannel,
-        financial_institution_transaction_id = "",
+        financial_institution_transaction_id =repo.json(),
         merchant_ref = merchant_ref  
     ), 400
 
-@freshPayGW.route('/api/v1/merchants', methods=['POST'])
-@jwt_required
-def createMerchant():
-    logger.info("CREATION DU MERCHANT")
-    parser = reqparse.RequestParser()
-    parser.add_argument("merchant_code", type=str, help='Merchant code')
-    parser.add_argument("key", type=str, help='Key')
-    parser.add_argument("merchant_payouts", type=str, help='Wallet de paiement')
-    parser.add_argument("merchant_deposits", type=str, help='Wallet de deposit')
-    data = parser.parse_args()
-    merchant_code = data['merchant_code']
-    key = data['key']
-    if data['merchant_deposits'] == "":
-        walletDeposit = "8273000"
-    else:
-        walletDeposit = data['merchant_deposits']
-    if data['merchant_payouts'] == "":
-        walletPayout = "15120"
-    else:
-        walletPayout = data['merchant_payouts']
-    
-    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
-    query = "SELECT * FROM merchantsMigration WHERE merchant_code = '{}'".format(merchant_code)
-    details = executeQueryForGetData(conn, query)
-    ta = len(details)
-    if ta > 0:
-        logger.warning("{} merchant code existe déjà dans le système".format(merchant_code))
-        return jsonify({"Message" : "Le merchant code existe déjà dans le système"}), 401
-    
-    createdAt = str(datetime.now())
-    keyToInsert = generate_password_hash(key)
-    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
-    query = "INSERT INTO merchantsMigration(created_at, updated_at, merchant_code, merchant_key, merchant_payouts, merchant_deposits) VALUES(%s, %s, %s, %s, %s, %s)"
-    dataToInsert = (createdAt, createdAt, merchant_code, keyToInsert, walletPayout, walletDeposit)
-    instertToSwitch = executeQueryForInsertDate(conn, query, dataToInsert)
-    if instertToSwitch == 1:
-        logger.info("{} creation du marchant effectuee avec success".format(merchant_code))
-        return jsonify(
-        action="creation de marchant",
-        status="Success",
-        merchant_code=merchant_code,
-        merchant_deposit_wallet=walletDeposit,
-        merchant_payout_wallet=walletPayout,
-        key=keyToInsert
-    ), 200
-    logger.error("{} Erreur survenue lors de la creation de ce merchant".format(merchant_code))
-    return jsonify({
-        "Message" : "Erreur survenue"
-    })
-def verifyMerchantReference():
-    logger.info("VERIFICATION DE L'UNICITE DU MERCHANT_REF")
-    parser = reqparse.RequestParser()
-    parser.add_argument("merchant_ref", type=str, help='Merchant reference')
-    data = parser.parse_args() 
-    merchant_ref = data['merchant_ref']
-    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
-    query = "SELECT * FROM transactionMigration WHERE created_at BETWEEN CONCAT(DATE_FORMAT(CURRENT_DATE, '%Y-%m-%d'), ' 00:00:00') and CONCAT(DATE_FORMAT(CURRENT_DATE, '%Y-%m-%d'), ' 23:59:59')  and merchant_ref = '{}'".format(merchant_ref)
-    details = executeQueryForGetData(conn, query)
-    if len(details) == 0:
-        return False
-    
-    return True
 
 def verifyMerchantReference():
     logger.info("VERIFICATION DE L'UNICITE DU MERCHANT_REF")
@@ -632,23 +639,241 @@ def verifyToTelco():
     logger.info("RECUPERATION DES INFORMATIONS POUR LE VERIFY CHEZ AIRTEL")
     parser = reqparse.RequestParser()
     parser.add_argument("transid", type=str, help='identifiant de la transaction')
+    parser.add_argument("currency", type=str, help='identifiant de la transaction')
     data = parser.parse_args()
     transid = data['transid']
-    pass
+    currency = data['currency']
+    token=GetToken()
+    headers = {
+        'Accept': '*/*',
+        'X-Country': 'CD',
+        'X-Currency': currency,
+        'Authorization': 'Bearer '+token
+        
+        }
+ 
+    try:
+
+        urlxx = "https://openapi.airtel.africa/standard/v1/payments/{}".format(transid)
+        r = requests.get(urlxx, headers = headers)
+        logger.info(r.json())
+        financial_institution_transaction_id =r.json()
+
+        FinancialInstitutionStatusCode =financial_institution_transaction_id['status']['code']
+        FinancialInstitutionReponseCode =financial_institution_transaction_id['status']['response_code']
+        statusDesc =financial_institution_transaction_id['status']['message']
+        FinancialInstitutionID =financial_institution_transaction_id['data']['transaction']['airtel_money_id']
+        status=financial_institution_transaction_id['data']['transaction']['status']
+
+        
+        if FinancialInstitutionID != "null":
+            if status == 'TS':
+                status = 'Successful'
+            elif status == 'TF':
+                status = 'Failed'
+        elif FinancialInstitutionID == "null" and status == "TF":
+            status = 'Pending'
+        return jsonify({
+            "trans_ref_no": transid,
+            "status": status,
+            "financial_institution_id": FinancialInstitutionID,
+            "financial_status_description": statusDesc
+        }), 200
+    except :
+        return jsonify({
+            "trans_ref_no": statusDesc,
+            
+        }), 200
+
+@freshPayGW.route("/api/v1/verifyPayout", methods=['POST'])
+def verifyToTelcoPayout():
+    logger.info("RECUPERATION DES INFORMATIONS POUR LE VERIFY CHEZ AIRTEL")
+    parser = reqparse.RequestParser()
+    parser.add_argument("transid", type=str, help='identifiant de la transaction')
+    parser.add_argument("currency", type=str, help='identifiant de la transaction')
+    data = parser.parse_args()
+    transid = data['transid']
+    currency = data['currency']
+    token=GetToken()
+    headers = {
+        'Accept': '*/*',
+        'X-Country': 'CD',
+        'X-Currency': currency,
+        'Authorization': 'Bearer '+token
+        
+        }
+ 
+    try:
+
+        r=requests.get('https://openapiuat.airtel.africa/standard/v2/disbursements/{}'.format(transid), params={'transactionType': 'B2B'}, headers = headers)
+        logger.info(r.json())
+        financial_institution_transaction_id =r.json()
+
+        FinancialInstitutionStatusCode =financial_institution_transaction_id['status']['code']
+        FinancialInstitutionReponseCode =financial_institution_transaction_id['status']['response_code']
+        statusDesc =financial_institution_transaction_id['status']['message']
+        FinancialInstitutionID =financial_institution_transaction_id['data']['transaction']['airtel_money_id']
+        status=financial_institution_transaction_id['data']['transaction']['status']
+
+        if FinancialInstitutionReponseCode == 'DP00900001001':
+                status = 'Successful'
+        elif FinancialInstitutionReponseCode == 'DP00900001000':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001003':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001004':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001005':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001006':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001007':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001009':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001010':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001011':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001012':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001013':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001014':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001015':
+                status = 'Failed'
+        elif FinancialInstitutionReponseCode == 'DP00900001016':
+                status = 'Failed'
+        else:
+                status = 'Submitted'
+        return jsonify({
+            "trans_ref_no": transid,
+            "status": status,
+            "financial_institution_id": FinancialInstitutionID,
+            "financial_status_description": statusDesc
+        }), 200
+    except :
+        return jsonify({
+            "trans_ref_no": statusDesc,
+            
+        }), 200
+
 
 @freshPayGW.route("/callback", methods=['POST'])
 def chargeCallback():
     logger.info("chargment du callback")
-    logger.info("test airtel callback")
-    content_dict = xmltodict.parse(request.data)
-    print(content_dict)
-    pass
+    content_dict =request.data
+    logger.info(content_dict)
+    FinancialInstitutionStatusCode =(content_dict['transaction']["status_code"])
+    FinancialInstitutionStatusDesc = (content_dict['transaction']["message"])
+    TransID = (content_dict['transaction']["id"])
+    FinancialInstitutionID =(content_dict['transaction']["airtel_money_id"])
+    updatedAt = str(datetime.now())
+    status="pending"
+
+    if FinancialInstitutionStatusCode != "null":
+                if FinancialInstitutionStatusCode == 'TS':
+                    status = 'Successful'
+                elif FinancialInstitutionStatusCode == 'TF':
+                    status = 'Failed'
+
+    logger.info("INCOMMING DATA FROM ORANGE CHARGE CALLBACK FOR {} {} {} {} {}".format(TransID, FinancialInstitutionStatusCode,FinancialInstitutionID, FinancialInstitutionID, status))
+
+    conn = connectToDatabase(host='138.68.158.250', user='jbiola',
+                             password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+    if type(conn) == tuple:
+        return jsonify({
+            "resultCode": 1,
+            "resultCodeDescription": "Not Processed, database connexion failed !",
+            "resultCodeError": 2,
+            "resultData": {}
+        }), 500
+    query = "UPDATE transactions SET updated_at = %s, status = %s, financial_institution_transaction_id = %s, financial_institution_status_code = %s, financial_institution_status_description = %s WHERE trans_ref_no = %s"
+    reft = str.find(FinancialInstitutionID,"MP")
+    dataToInsert = (updatedAt, status,FinancialInstitutionID,FinancialInstitutionStatusCode,FinancialInstitutionStatusDesc, TransID)
+    instertToSwitch = executeQueryForInsertDate(conn, query, dataToInsert)
+    if instertToSwitch == 1:
+        conn = connectToDatabase(host='138.68.158.250', user='jbiola',
+                                 password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+
+        query = "SELECT * FROM transactions WHERE trans_ref_no = '{}'".format(TransID)
+        details = executeQueryForGetData(conn, query)
+        url = details[0][17]
+        paydrc = details[0][15]
+        if url != None:
+            dataToSend = {
+                "action": "debit",
+                "switch_reference": TransID,
+                "telco_reference": FinancialInstitutionID,
+                "status": status,
+                "paydrc_reference": paydrc,
+                "telco_status_description": FinancialInstitutionStatusDesc,
+                "status_code":FinancialInstitutionStatusCode   
+            }
+            logger.info(sendToPayDRC(dataToSend,url))
+
+        return "CALLBACK SUCCESSFUL"
+    else:
+        logger.info("INCOMMING FROM ORANGE CHARGE CALLBACK BUT NOT UPDATED FOR {} {} {} {} {}".format(TransID, FinancialInstitutionStatusCode,FinancialInstitutionID,FinancialInstitutionID[reft::], status))
     
-@freshPayGW.route("/api/v1/payoutCallback", methods=['POST'])
-def payoutCallback():
+        return "CALLBACK FAILED"
+    
     logger.info("chargment du callback")
     content_dict = xmltodict.parse(request.data)
-    pass
+    logger.info(content_dict)
+    FinancialInstitutionStatusCode = content_dict["soapenv:Envelope"]["soapenv:Body"]["ser:doCallback"]["ResultCode"]
+    logger.info(FinancialInstitutionStatusCode)
+    TransID =content_dict["soapenv:Envelope"]["soapenv:Body"]["ser:doCallback"]["transid"]
+    logger.info(TransID)
+    FinancialInstitutionID=content_dict["soapenv:Envelope"]["soapenv:Body"]["ser:doCallback"]["ResultDesc"]
+    logger.info(FinancialInstitutionID)
+    logger.info("CALLBACK--------------------------------------------------")
+    logger.info(request.data)
+    if FinancialInstitutionStatusCode == '200':
+        status = 'Successful'
+    else:
+        status = 'Failed'
+
+    return "ok"
+    updatedAt = str(datetime.now())
+    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+    query = "SELECT * FROM transactionOrange WHERE (trans_ref_no= '{}')".format(TransID)
+    details = executeQueryForGetData(conn, query)
+ 
+    if len(details)>0:
+        conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+        query = "UPDATE transactionOrange SET updated_at = %s, status = %s, financial_institution_transaction_id = %s, financial_institution_status_code = %s, financial_institution_status_description = %s WHERE trans_ref_no = %s"
+        reft = str.find(FinancialInstitutionID,"MP")
+        dataToInsert = (updatedAt,status,FinancialInstitutionID[reft::],FinancialInstitutionStatusCode,FinancialInstitutionID,TransID)
+        instertToSwitch = executeQueryForInsertDate(conn, query, dataToInsert)
+
+    return "OK"
+    FinancialInstitutionStatusDesc = content_dict["soapenv:Envelope"]["soapenv:Body"]["gen:getGenericResult"]["Request"]["dataItem"][2]['value']
+    TransID = content_dict["soapenv:Envelope"]["soapenv:Body"]["gen:getGenericResult"]["Request"]["dataItem"][5]['value']
+    FinancialInstitutionID = content_dict["soapenv:Envelope"]["soapenv:Body"]["gen:getGenericResult"]["Request"]["dataItem"][9]['value']
+    updatedAt = str(datetime.now())
+    
+    if FinancialInstitutionStatusCode == '200':
+        status = 'Successful'
+    else:
+        status = 'Failed'
+
+    conn = connectToDatabase(host='138.68.158.250', user='jbiola', password='gofreshbakeryproduction2020jb', db='switch', port=3306)
+    query = "UPDATE transactions SET updated_at = %s, status = %s, financial_institution_transaction_id = %s, financial_institution_status_code = %s, financial_institution_status_description = %s WHERE trans_ref_no = %s"
+    dataToInsert = (updatedAt, status, FinancialInstitutionID, FinancialInstitutionStatusCode, FinancialInstitutionStatusDesc, TransID)
+    instertToSwitch = executeQueryForInsertDate(conn, query, dataToInsert)
+   
+    if instertToSwitch == 1:
+        logger.info("INCOMMING FROM VODACOM CALLBACK FOR {} {} {} {} {}".format(TransID, FinancialInstitutionStatusCode, FinancialInstitutionStatusDesc, FinancialInstitutionID, status))
+        return "CALLBACK SUCCESSFUL"
+    else:
+        logger.info("INCOMMING FROM VODACOM CALLBACK BUT NOT UPDATED FOR {} {} {} {} {}".format(TransID, FinancialInstitutionStatusCode, FinancialInstitutionStatusDesc, FinancialInstitutionID, status))
+        return "CALLBACK FAILED"
+
+           
+    
+
 
 
 

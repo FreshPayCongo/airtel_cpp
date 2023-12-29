@@ -16,5 +16,5 @@ from .Merchant import *
 freshPayGW = Flask(__name__)
 
 logger.info("Importation de l'objet de gestion de vodacom")
-# Importation de l'objet de gestion de vodacom
+# Importation de l'objet de gestion de Airtel
 from .Airtel import *
